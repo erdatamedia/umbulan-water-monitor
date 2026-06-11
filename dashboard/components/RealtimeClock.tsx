@@ -1,0 +1,44 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface RealtimeClockProps {
+  lastUpdate: string | null;
+  staleAfterSeconds?: number;
+}
+
+export function RealtimeClock({ lastUpdate, staleAfterSeconds = 60 }: RealtimeClockProps) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const secondsAgo = lastUpdate
+    ? Math.floor((now.getTime() - new Date(lastUpdate).getTime()) / 1000)
+    : null;
+
+  const isStale = secondsAgo !== null && secondsAgo > staleAfterSeconds;
+
+  function formatAgo(s: number) {
+    if (s < 60) return `${s}d yang lalu`;
+    if (s < 3600) return `${Math.floor(s / 60)}m yang lalu`;
+    return `${Math.floor(s / 3600)}j yang lalu`;
+  }
+
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="text-gray-500 font-mono">
+        {now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </span>
+      {secondsAgo !== null && (
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+          isStale ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+        }`}>
+          {isStale ? `⚠ Stale · ${formatAgo(secondsAgo)}` : `✓ ${formatAgo(secondsAgo)}`}
+        </span>
+      )}
+    </div>
+  );
+}
