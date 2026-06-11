@@ -28,15 +28,15 @@ export function RealtimeClock({ lastUpdate, staleAfterSeconds = 60 }: RealtimeCl
   }
 
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="text-gray-500 font-mono">
+    <div className="flex items-center gap-2">
+      <span className="text-gray-500 font-mono text-xs md:text-sm">
         {now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </span>
       {secondsAgo !== null && (
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] md:text-xs font-medium ${
           isStale ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
         }`}>
-          {isStale ? `⚠ Stale · ${formatAgo(secondsAgo)}` : `✓ ${formatAgo(secondsAgo)}`}
+          {isStale ? `⚠ ${formatAgo(secondsAgo)}` : `✓ ${formatAgo(secondsAgo)}`}
         </span>
       )}
     </div>

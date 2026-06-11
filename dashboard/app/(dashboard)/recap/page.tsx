@@ -74,16 +74,16 @@ export default function RecapPage() {
   return (
     <>
       <Header title="Rekap Harian" subtitle="Statistik dan ringkasan pengambilan data" />
-      <div className="p-6 flex flex-col gap-5">
+      <div className="p-3 md:p-6 flex flex-col gap-3 md:gap-5">
 
         {/* Date picker */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-4">
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm p-3 md:p-4 flex flex-wrap items-center gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 font-medium">Tanggal</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <div className="flex gap-2 pt-5">
+          <div className="flex gap-2 mt-auto">
             {['Hari ini', 'Kemarin'].map(label => (
               <button key={label} onClick={() => {
                 const d = new Date();
@@ -95,15 +95,15 @@ export default function RecapPage() {
               </button>
             ))}
           </div>
-          <div className="ml-auto pt-5">
-            <span className="text-sm text-gray-500">
+          <div className="ml-auto mt-auto">
+            <span className="text-xs md:text-sm text-gray-500">
               {loading ? 'Memuat...' : `${data.length} rekaman · ${sessions.length} sesi`}
             </span>
           </div>
         </div>
 
         {data.length === 0 && !loading && (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-sm p-8 md:p-12 text-center text-gray-400">
             Tidak ada data pada tanggal ini
           </div>
         )}
@@ -112,12 +112,12 @@ export default function RecapPage() {
           <>
             {/* Stats grid */}
             <div>
-              <h2 className="text-sm font-semibold text-gray-600 mb-3">Statistik Hari Ini</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <h2 className="text-sm font-semibold text-gray-600 mb-2 md:mb-3">Statistik Hari Ini</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-4">
                 {SENSORS.map(({ key, label, unit, color, decimals = 2 }) => {
                   const s = calcStats(data, key);
                   return (
-                    <div key={key} className="bg-white rounded-2xl shadow-sm p-5">
+                    <div key={key} className="bg-white rounded-xl md:rounded-2xl shadow-sm p-3 md:p-5">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold text-gray-700">{label}</span>
                         <span className="text-xs text-gray-400">{unit} · {s?.count ?? 0} data</span>

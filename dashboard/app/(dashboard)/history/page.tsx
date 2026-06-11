@@ -63,21 +63,23 @@ export default function HistoryPage() {
   return (
     <>
       <Header title="Riwayat Data" subtitle="Filter dan ekspor data pengukuran" />
-      <div className="p-6 flex flex-col gap-5">
+      <div className="p-3 md:p-6 flex flex-col gap-3 md:gap-5">
 
         {/* Filter bar */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-wrap items-end gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Dari</label>
-            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm p-3 md:p-4 flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Dari</label>
+              <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)}
+                className="border border-gray-200 rounded-lg px-2 md:px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Sampai</label>
+              <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)}
+                className="border border-gray-200 rounded-lg px-2 md:px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" />
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Sampai</label>
-            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {['Hari ini', 'Kemarin', '7 hari'].map((label) => (
               <button key={label} onClick={() => {
                 const now = new Date();
@@ -94,29 +96,29 @@ export default function HistoryPage() {
                   setTo(`${now.toISOString().slice(0, 10)}T23:59`);
                 }
               }}
-                className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">
+                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">
               {label}
             </button>
             ))}
-          </div>
-          <div className="ml-auto flex gap-2">
-            <button onClick={fetchData}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
-              Tampilkan
-            </button>
-            <button onClick={exportCSV} disabled={data.length === 0}
-              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors font-medium flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export CSV
-            </button>
+            <div className="ml-auto flex gap-2">
+              <button onClick={fetchData}
+                className="px-3 md:px-4 py-1.5 md:py-2 bg-blue-600 text-white text-xs md:text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                Tampilkan
+              </button>
+              <button onClick={exportCSV} disabled={data.length === 0}
+                className="px-3 md:px-4 py-1.5 md:py-2 bg-green-600 text-white text-xs md:text-sm rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors font-medium flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="hidden md:inline">Export </span>CSV
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Summary row */}
         {data.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
             {[
               { label: 'Total Data', value: data.length.toString(), unit: 'rekaman' },
               { label: 'Periode', value: `${from.slice(0, 10)}`, unit: `s/d ${to.slice(0, 10)}` },
@@ -129,10 +131,10 @@ export default function HistoryPage() {
                 })(), unit: 'menit'
               },
             ].map((s, i) => (
-              <div key={i} className="bg-white rounded-xl shadow-sm p-4">
-                <p className="text-xs text-gray-400 uppercase tracking-wide">{s.label}</p>
-                <p className="text-xl font-bold text-gray-800 mt-1">{s.value}</p>
-                <p className="text-xs text-gray-400">{s.unit}</p>
+              <div key={i} className="bg-white rounded-xl shadow-sm p-3 md:p-4">
+                <p className="text-[10px] md:text-xs text-gray-400 uppercase tracking-wide">{s.label}</p>
+                <p className="text-base md:text-xl font-bold text-gray-800 mt-0.5 truncate">{s.value}</p>
+                <p className="text-[10px] md:text-xs text-gray-400">{s.unit}</p>
               </div>
             ))}
           </div>
@@ -140,7 +142,7 @@ export default function HistoryPage() {
 
         {/* Charts */}
         {data.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
             <SensorChart data={data} dataKey="temperature" color="#f59e0b" label="Suhu" unit="°C" />
             <SensorChart data={data} dataKey="ph" color="#8b5cf6" label="pH" unit="pH" />
             <SensorChart data={data} dataKey="turbidity" color="#06b6d4" label="Turbiditas" unit="NTU" />

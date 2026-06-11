@@ -38,55 +38,73 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col min-h-screen">
-      {/* Brand */}
-      <div className="px-5 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-gray-800 leading-none">Umbulan</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">Water Monitor</p>
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-white border-r border-gray-100 flex-col min-h-screen">
+        <div className="px-5 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800 leading-none">Umbulan</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Water Monitor</p>
+            </div>
           </div>
         </div>
-      </div>
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+          {NAV.map(({ href, label, icon }) => {
+            const active = pathname === href;
+            return (
+              <Link key={href} href={href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                }`}>
+                <span className={active ? 'text-blue-600' : 'text-gray-400'}>{icon}</span>
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="px-5 py-4 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400 mb-1">UNISMA Malang · Teknik</p>
+          <form action={logout}>
+            <button type="submit" className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Keluar
+            </button>
+          </form>
+        </div>
+      </aside>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+      {/* Mobile bottom navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 flex">
         {NAV.map(({ href, label, icon }) => {
           const active = pathname === href;
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-              }`}
-            >
-              <span className={active ? 'text-blue-600' : 'text-gray-400'}>{icon}</span>
-              {label}
+            <Link key={href} href={href}
+              className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-colors ${
+                active ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+              <span className="w-5 h-5">{icon}</span>
+              <span className="text-[10px] font-medium leading-none">{label}</span>
             </Link>
           );
         })}
-      </nav>
-
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 mb-1">UNISMA Malang · Teknik</p>
-        <form action={logout}>
-          <button type="submit" className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <form action={logout} className="flex-none">
+          <button type="submit"
+            className="flex flex-col items-center justify-center py-2.5 px-4 gap-1 text-gray-400 h-full">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Keluar
+            <span className="text-[10px] font-medium leading-none">Keluar</span>
           </button>
         </form>
-      </div>
-    </aside>
+      </nav>
+    </>
   );
 }
