@@ -19,6 +19,20 @@ export default function OverviewPage() {
   const waterLevel = toNum(latest?.water_level_cm) ?? derived?.waterLevelCm ?? null;
   const discharge  = toNum(latest?.discharge_m3s)  ?? derived?.discharge    ?? null;
 
+  // Enrich history: tambahkan dummy water_level_cm & discharge_m3s dari suhu
+  // karena AJ-SR04M belum aktif sehingga semua nilai di DB adalah null
+  const enrichedHistory = history.map((r) => {
+    if (r.water_level_cm != null && r.discharge_m3s != null) return r;
+    const t = toNum(r.temperature);
+    if (!t || t <= 0) return r;
+    const d = deriveFromTemp(t);
+    return {
+      ...r,
+      water_level_cm: r.water_level_cm ?? d.waterLevelCm,
+      discharge_m3s:  r.discharge_m3s  ?? d.discharge,
+    };
+  });
+
   return (
     <>
       <Header
@@ -47,8 +61,8 @@ export default function OverviewPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
           <SensorChart data={history} dataKey="turbidity" color="#06b6d4" label="Turbiditas" unit="NTU" />
-          <SensorChart data={history} dataKey="water_level_cm" color="#3b82f6" label="Muka Air" unit="cm" />
-          <SensorChart data={history} dataKey="discharge_m3s" color="#10b981" label="Debit" unit="m³/s" />
+          <SensorChart data={enrichedHistory} dataKey="water_level_cm" color="#3b82f6" label="Muka Air" unit="cm" />
+          <SensorChart data={enrichedHistory} dataKey="discharge_m3s" color="#10b981" label="Debit" unit="m³/s" />
           <SensorChart data={history} dataKey="do_estimated" color="#ef4444" label="DO Estimasi" unit="mg/L" />
         </div>
       </div>
