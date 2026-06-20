@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { SensorReading } from '@/lib/types';
 import { deriveFromTemp } from '@/lib/sensorDummy';
 
@@ -8,33 +9,43 @@ interface DeviceStatusProps {
 }
 
 const SENSORS: { key: string; label: string; unit: string; decimals?: number }[] = [
-  { key: 'temperature',    label: 'DS18B20 (Suhu)',    unit: '°C' },
-  { key: 'ph',             label: 'pH-4502C',           unit: 'pH' },
-  { key: 'turbidity',      label: 'Turbiditas',         unit: 'NTU' },
+  { key: 'temperature',    label: 'DS18B20 (Suhu)',      unit: '°C' },
+  { key: 'ph',             label: 'pH-4502C',             unit: 'pH' },
+  { key: 'turbidity',      label: 'Turbiditas',           unit: 'NTU' },
   { key: 'water_level_cm', label: 'AJ-SR04M (Muka Air)', unit: 'cm' },
-  { key: 'discharge_m3s',  label: 'Debit (Kalkulasi)',  unit: 'm³/s', decimals: 4 },
-  { key: 'do_estimated',   label: 'DO (Estimasi)',      unit: 'mg/L' },
+  { key: 'discharge_m3s',  label: 'Debit (Kalkulasi)',    unit: 'm³/s', decimals: 4 },
+  { key: 'do_estimated',   label: 'DO (Estimasi)',        unit: 'mg/L' },
 ];
+
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
 
 export function DeviceStatus({ latest }: DeviceStatusProps) {
   const deviceConnected = latest !== null;
-  const secondsAgo = latest
-    ? Math.floor((Date.now() - new Date(latest.recorded_at).getTime()) / 1000)
+  // now di-set client-side saja untuk hindari hydration mismatch
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => { setNow(Date.now()); }, [latest]);
+
+  const secondsAgo = now !== null && latest
+    ? Math.floor((now - new Date(latest.recorded_at).getTime()) / 1000)
     : null;
   const isOnline = secondsAgo !== null && secondsAgo < 120;
 
-  const temp = latest?.temperature ?? null;
+  const temp = toNum(latest?.temperature);
   const deviceActive = isOnline && temp !== null;
   const derived = deviceActive ? deriveFromTemp(temp!) : null;
 
-  // Gabungkan nilai real dari DB dengan fallback dummy
+  // Gabungkan nilai real dari DB dengan fallback dummy, paksa ke number
   const displayValues: Record<string, number | null> = {
-    temperature:    latest?.temperature    ?? null,
-    ph:             latest?.ph             ?? derived?.ph             ?? null,
-    turbidity:      latest?.turbidity      ?? derived?.turbidity      ?? null,
-    water_level_cm: latest?.water_level_cm ?? derived?.waterLevelCm  ?? null,
-    discharge_m3s:  latest?.discharge_m3s  ?? derived?.discharge      ?? null,
-    do_estimated:   latest?.do_estimated   ?? derived?.doEst          ?? null,
+    temperature:    toNum(latest?.temperature)    ?? null,
+    ph:             toNum(latest?.ph)             ?? derived?.ph          ?? null,
+    turbidity:      toNum(latest?.turbidity)      ?? derived?.turbidity   ?? null,
+    water_level_cm: toNum(latest?.water_level_cm) ?? derived?.waterLevelCm ?? null,
+    discharge_m3s:  toNum(latest?.discharge_m3s)  ?? derived?.discharge   ?? null,
+    do_estimated:   toNum(latest?.do_estimated)   ?? derived?.doEst       ?? null,
   };
 
   return (

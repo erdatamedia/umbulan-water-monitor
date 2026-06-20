@@ -10,12 +10,14 @@ import { deriveFromTemp } from '@/lib/sensorDummy';
 export default function OverviewPage() {
   const { latest, history, connected } = useSensorData();
 
-  const temp = latest?.temperature ?? null;
+  const toNum = (v: unknown) => { const n = Number(v); return (v == null || isNaN(n)) ? null : n; };
+
+  const temp = toNum(latest?.temperature);
   const deviceActive = temp !== null && temp > 0;
   const derived = deviceActive ? deriveFromTemp(temp!) : null;
 
-  const waterLevel = latest?.water_level_cm ?? derived?.waterLevelCm ?? null;
-  const discharge  = latest?.discharge_m3s  ?? derived?.discharge    ?? null;
+  const waterLevel = toNum(latest?.water_level_cm) ?? derived?.waterLevelCm ?? null;
+  const discharge  = toNum(latest?.discharge_m3s)  ?? derived?.discharge    ?? null;
 
   return (
     <>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSensorData } from '@/hooks/useSensorData';
 import { Header } from '@/components/layout/Header';
 import { deriveFromTemp } from '@/lib/sensorDummy';
@@ -32,28 +32,38 @@ const SENSOR_ROWS = [
   { key: 'do_estimated',   label: 'DO Estimasi', sublabel: 'Oksigen Terlarut', unit: 'mg/L', decimals: 2 },
 ] as const;
 
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
 export default function SistemPage() {
   const { latest, connected } = useSensorData();
   const [form, setForm] = useState<TitikForm>(FORM_INIT);
   const [saved, setSaved] = useState(false);
+  // now hanya di client — hindari hydration mismatch dengan Date.now()
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => { setNow(Date.now()); }, [latest]);
 
   // Aktif jika ada data suhu dalam 2 menit terakhir
-  const temp = latest?.temperature ?? null;
+  const temp = toNum(latest?.temperature);
   const deviceActive = temp !== null && temp > 0;
-  const secondsAgo = latest
-    ? Math.floor((Date.now() - new Date(latest.recorded_at).getTime()) / 1000)
+  const secondsAgo = now !== null && latest
+    ? Math.floor((now - new Date(latest.recorded_at).getTime()) / 1000)
     : null;
   const isOnline = secondsAgo !== null && secondsAgo < 120;
 
   const derived = deviceActive ? deriveFromTemp(temp!) : null;
 
+  // Paksa semua nilai jadi number (API bisa kirim string)
   const sensorValues: Record<string, number | null> = {
-    temperature:    latest?.temperature    ?? null,
-    ph:             latest?.ph             ?? derived?.ph          ?? null,
-    turbidity:      latest?.turbidity      ?? derived?.turbidity   ?? null,
-    water_level_cm: latest?.water_level_cm ?? derived?.waterLevelCm ?? null,
-    discharge_m3s:  latest?.discharge_m3s  ?? derived?.discharge   ?? null,
-    do_estimated:   latest?.do_estimated   ?? derived?.doEst       ?? null,
+    temperature:    toNum(latest?.temperature)    ?? null,
+    ph:             toNum(latest?.ph)             ?? derived?.ph          ?? null,
+    turbidity:      toNum(latest?.turbidity)      ?? derived?.turbidity   ?? null,
+    water_level_cm: toNum(latest?.water_level_cm) ?? derived?.waterLevelCm ?? null,
+    discharge_m3s:  toNum(latest?.discharge_m3s)  ?? derived?.discharge   ?? null,
+    do_estimated:   toNum(latest?.do_estimated)   ?? derived?.doEst       ?? null,
   };
 
   function handleChange(field: keyof TitikForm, value: string) {
@@ -221,12 +231,20 @@ export default function SistemPage() {
               <div className="bg-blue-50 rounded-xl px-4 py-3 text-xs text-blue-700">
                 <p className="font-semibold mb-1">Data sensor yang akan disimpan bersama titik ini:</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
-                  <span>Suhu: {sensorValues.temperature?.toFixed(2)} °C</span>
-                  <span>pH: {sensorValues.ph?.toFixed(2)}</span>
-                  <span>Turbiditas: {sensorValues.turbidity?.toFixed(1)} NTU</span>
-                  <span>Muka Air: {sensorValues.water_level_cm?.toFixed(1)} cm</span>
-                  <span>Debit: {sensorValues.discharge_m3s?.toFixed(4)} m³/s</span>
-                  <span>DO: {sensorValues.do_estimated?.toFixed(2)} mg/L</span>
+                  {([
+                    ['Suhu',      'temperature',    2, '°C'],
+                    ['pH',        'ph',             2, ''],
+                    ['Turbiditas','turbidity',       1, 'NTU'],
+                    ['Muka Air',  'water_level_cm', 1, 'cm'],
+                    ['Debit',     'discharge_m3s',  4, 'm³/s'],
+                    ['DO',        'do_estimated',   2, 'mg/L'],
+                  ] as [string, string, number, string][]).map(([lbl, key, dec, unit]) => (
+                    <span key={key}>
+                      {lbl}: {sensorValues[key] !== null
+                        ? `${Number(sensorValues[key]).toFixed(dec)} ${unit}`.trim()
+                        : '—'}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
@@ -286,10 +304,12 @@ function SavedPointsList() {
               <span className="text-gray-400 font-mono">{p.kodeTitik || '—'}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-gray-500 mb-1">
-              <span>Suhu: {p.suhu?.toFixed(2) ?? '—'} °C</span>
-              <span>pH: {p.ph?.toFixed(2) ?? '—'}</span>
-              <span>Turb: {p.turbidity?.toFixed(1) ?? '—'} NTU</span>
-              <span>DO: {p.do_estimated?.toFixed(2) ?? '—'} mg/L</span>
+              <span>Suhu: {p.suhu != null ? Number(p.suhu).toFixed(2) : '—'} °C</span>
+              <span>pH: {p.ph != null ? Number(p.ph).toFixed(2) : '—'}</span>
+              <span>Turb: {p.turbidity != null ? Number(p.turbidity).toFixed(1) : '—'} NTU</span>
+              <span>Muka Air: {p.water_level_cm != null ? Number(p.water_level_cm).toFixed(1) : '—'} cm</span>
+              <span>Debit: {p.discharge_m3s != null ? Number(p.discharge_m3s).toFixed(4) : '—'} m³/s</span>
+              <span>DO: {p.do_estimated != null ? Number(p.do_estimated).toFixed(2) : '—'} mg/L</span>
             </div>
             {p.lat && <span className="text-gray-400">{p.lat}, {p.lng} · </span>}
             {p.petugas && <span className="text-gray-400">{p.petugas} · </span>}
