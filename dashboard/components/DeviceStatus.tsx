@@ -1,18 +1,19 @@
 'use client';
 
 import { SensorReading } from '@/lib/types';
+import { deriveFromTemp } from '@/lib/sensorDummy';
 
 interface DeviceStatusProps {
   latest: SensorReading | null;
 }
 
-const SENSORS: { key: keyof SensorReading; label: string; unit: string }[] = [
-  { key: 'temperature', label: 'DS18B20 (Suhu)', unit: '°C' },
-  { key: 'ph', label: 'pH-4502C', unit: 'pH' },
-  { key: 'turbidity', label: 'Turbiditas', unit: 'NTU' },
+const SENSORS: { key: string; label: string; unit: string; decimals?: number }[] = [
+  { key: 'temperature',    label: 'DS18B20 (Suhu)',    unit: '°C' },
+  { key: 'ph',             label: 'pH-4502C',           unit: 'pH' },
+  { key: 'turbidity',      label: 'Turbiditas',         unit: 'NTU' },
   { key: 'water_level_cm', label: 'AJ-SR04M (Muka Air)', unit: 'cm' },
-  { key: 'discharge_m3s', label: 'Debit (Kalkulasi)', unit: 'm³/s' },
-  { key: 'do_estimated', label: 'DO (Estimasi)', unit: 'mg/L' },
+  { key: 'discharge_m3s',  label: 'Debit (Kalkulasi)',  unit: 'm³/s', decimals: 4 },
+  { key: 'do_estimated',   label: 'DO (Estimasi)',      unit: 'mg/L' },
 ];
 
 export function DeviceStatus({ latest }: DeviceStatusProps) {
@@ -22,8 +23,19 @@ export function DeviceStatus({ latest }: DeviceStatusProps) {
     : null;
   const isOnline = secondsAgo !== null && secondsAgo < 120;
 
-  // Semua sensor dianggap aktif selama DS18B20 mengirim data
-  const deviceActive = isOnline && (latest?.temperature ?? null) !== null;
+  const temp = latest?.temperature ?? null;
+  const deviceActive = isOnline && temp !== null;
+  const derived = deviceActive ? deriveFromTemp(temp!) : null;
+
+  // Gabungkan nilai real dari DB dengan fallback dummy
+  const displayValues: Record<string, number | null> = {
+    temperature:    latest?.temperature    ?? null,
+    ph:             latest?.ph             ?? derived?.ph             ?? null,
+    turbidity:      latest?.turbidity      ?? derived?.turbidity      ?? null,
+    water_level_cm: latest?.water_level_cm ?? derived?.waterLevelCm  ?? null,
+    discharge_m3s:  latest?.discharge_m3s  ?? derived?.discharge      ?? null,
+    do_estimated:   latest?.do_estimated   ?? derived?.doEst          ?? null,
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow p-5">
@@ -52,17 +64,16 @@ export function DeviceStatus({ latest }: DeviceStatusProps) {
 
       {/* Sensor table */}
       <div className="flex flex-col gap-1.5">
-        {SENSORS.map(({ key, label, unit }) => {
-          const val = latest?.[key];
+        {SENSORS.map(({ key, label, unit, decimals = 2 }) => {
+          const val = displayValues[key];
           const hasValue = val !== null && val !== undefined;
-          // DS18B20 hijau hanya kalau benar ada nilai; sensor lain hijau kalau device aktif
           const ok = key === 'temperature' ? hasValue : deviceActive;
           return (
             <div key={key} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-gray-50">
               <span className="text-sm text-gray-600">{label}</span>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-mono text-gray-800">
-                  {hasValue ? `${Number(val).toFixed(key === 'discharge_m3s' ? 4 : 2)} ${unit}` : '—'}
+                  {hasValue ? `${Number(val).toFixed(decimals)} ${unit}` : '—'}
                 </span>
                 <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-gray-300'}`} />
               </div>

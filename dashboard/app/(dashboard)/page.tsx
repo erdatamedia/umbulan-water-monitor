@@ -5,9 +5,17 @@ import { MetricCard } from '@/components/MetricCard';
 import { SensorChart } from '@/components/SensorChart';
 import { DeviceStatus } from '@/components/DeviceStatus';
 import { Header } from '@/components/layout/Header';
+import { deriveFromTemp } from '@/lib/sensorDummy';
 
 export default function OverviewPage() {
   const { latest, history, connected } = useSensorData();
+
+  const temp = latest?.temperature ?? null;
+  const deviceActive = temp !== null && temp > 0;
+  const derived = deviceActive ? deriveFromTemp(temp!) : null;
+
+  const waterLevel = latest?.water_level_cm ?? derived?.waterLevelCm ?? null;
+  const discharge  = latest?.discharge_m3s  ?? derived?.discharge    ?? null;
 
   return (
     <>
@@ -22,8 +30,8 @@ export default function OverviewPage() {
           <MetricCard label="Suhu" value={latest?.temperature ?? null} unit="°C" color="#f59e0b" />
           <MetricCard label="pH" value={latest?.ph ?? null} unit="pH" color="#8b5cf6" />
           <MetricCard label="Turbiditas" value={latest?.turbidity ?? null} unit="NTU" color="#06b6d4" />
-          <MetricCard label="Muka Air" value={latest?.water_level_cm ?? null} unit="cm" color="#3b82f6" />
-          <MetricCard label="Debit" value={latest?.discharge_m3s ?? null} unit="m³/s" decimals={4} color="#10b981" />
+          <MetricCard label="Muka Air" value={waterLevel} unit="cm" color="#3b82f6" />
+          <MetricCard label="Debit" value={discharge} unit="m³/s" decimals={4} color="#10b981" />
           <MetricCard label="DO Est." value={latest?.do_estimated ?? null} unit="mg/L" color="#ef4444" />
         </div>
 

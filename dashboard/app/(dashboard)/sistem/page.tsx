@@ -3,20 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSensorData } from '@/hooks/useSensorData';
 import { Header } from '@/components/layout/Header';
-
-// Hitung nilai sensor yang berkorelasi dengan suhu
-// Dipakai ketika sensor real belum tersambung — nilai wajar untuk mata air Umbulan
-function deriveFromTemp(temp: number) {
-  // pH: inversely correlated, mata air pegunungan/kapur netral-sedikit basa
-  const ph = parseFloat((7.45 - (temp - 25) * 0.018).toFixed(2));
-  // Turbidity: sangat rendah, sedikit naik saat suhu naik
-  const turbidity = parseFloat(Math.max(1.0, 2.1 + (temp - 25) * 0.09).toFixed(1));
-  // DO: rumus Benson & Krause (sama persis dengan firmware)
-  const doEst = parseFloat(
-    (14.62 - 0.3898 * temp + 0.006969 * temp * temp - 0.00005896 * temp * temp * temp).toFixed(2)
-  );
-  return { ph, turbidity, doEst };
-}
+import { deriveFromTemp } from '@/lib/sensorDummy';
 
 interface TitikForm {
   namaTitik: string;
@@ -37,10 +24,12 @@ const FORM_INIT: TitikForm = {
 };
 
 const SENSOR_ROWS = [
-  { key: 'temperature', label: 'DS18B20', sublabel: 'Suhu Air', unit: '°C', decimals: 2 },
-  { key: 'ph', label: 'pH-4502C', sublabel: 'Keasaman', unit: 'pH', decimals: 2 },
-  { key: 'turbidity', label: 'Turbiditas', sublabel: 'Kekeruhan', unit: 'NTU', decimals: 1 },
-  { key: 'do_estimated', label: 'DO Estimasi', sublabel: 'Oksigen Terlarut', unit: 'mg/L', decimals: 2 },
+  { key: 'temperature',    label: 'DS18B20',     sublabel: 'Suhu Air',         unit: '°C',  decimals: 2 },
+  { key: 'ph',             label: 'pH-4502C',    sublabel: 'Keasaman',         unit: 'pH',  decimals: 2 },
+  { key: 'turbidity',      label: 'Turbiditas',  sublabel: 'Kekeruhan',        unit: 'NTU', decimals: 1 },
+  { key: 'water_level_cm', label: 'AJ-SR04M',    sublabel: 'Muka Air',         unit: 'cm',  decimals: 1 },
+  { key: 'discharge_m3s',  label: 'Debit',       sublabel: 'Rating Curve',     unit: 'm³/s', decimals: 4 },
+  { key: 'do_estimated',   label: 'DO Estimasi', sublabel: 'Oksigen Terlarut', unit: 'mg/L', decimals: 2 },
 ] as const;
 
 export default function SistemPage() {
@@ -59,10 +48,12 @@ export default function SistemPage() {
   const derived = deviceActive ? deriveFromTemp(temp!) : null;
 
   const sensorValues: Record<string, number | null> = {
-    temperature: latest?.temperature ?? null,
-    ph: latest?.ph ?? derived?.ph ?? null,
-    turbidity: latest?.turbidity ?? derived?.turbidity ?? null,
-    do_estimated: latest?.do_estimated ?? derived?.doEst ?? null,
+    temperature:    latest?.temperature    ?? null,
+    ph:             latest?.ph             ?? derived?.ph          ?? null,
+    turbidity:      latest?.turbidity      ?? derived?.turbidity   ?? null,
+    water_level_cm: latest?.water_level_cm ?? derived?.waterLevelCm ?? null,
+    discharge_m3s:  latest?.discharge_m3s  ?? derived?.discharge   ?? null,
+    do_estimated:   latest?.do_estimated   ?? derived?.doEst       ?? null,
   };
 
   function handleChange(field: keyof TitikForm, value: string) {
@@ -78,6 +69,8 @@ export default function SistemPage() {
       suhu: sensorValues.temperature,
       ph: sensorValues.ph,
       turbidity: sensorValues.turbidity,
+      water_level_cm: sensorValues.water_level_cm,
+      discharge_m3s: sensorValues.discharge_m3s,
       do_estimated: sensorValues.do_estimated,
       waktu: latest?.recorded_at ?? new Date().toISOString(),
       savedAt: new Date().toISOString(),
@@ -231,6 +224,8 @@ export default function SistemPage() {
                   <span>Suhu: {sensorValues.temperature?.toFixed(2)} °C</span>
                   <span>pH: {sensorValues.ph?.toFixed(2)}</span>
                   <span>Turbiditas: {sensorValues.turbidity?.toFixed(1)} NTU</span>
+                  <span>Muka Air: {sensorValues.water_level_cm?.toFixed(1)} cm</span>
+                  <span>Debit: {sensorValues.discharge_m3s?.toFixed(4)} m³/s</span>
                   <span>DO: {sensorValues.do_estimated?.toFixed(2)} mg/L</span>
                 </div>
               </div>
