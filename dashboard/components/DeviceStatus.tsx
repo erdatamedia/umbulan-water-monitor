@@ -22,6 +22,9 @@ export function DeviceStatus({ latest }: DeviceStatusProps) {
     : null;
   const isOnline = secondsAgo !== null && secondsAgo < 120;
 
+  // Semua sensor dianggap aktif selama DS18B20 mengirim data
+  const deviceActive = isOnline && (latest?.temperature ?? null) !== null;
+
   return (
     <div className="bg-white rounded-2xl shadow p-5">
       <h2 className="text-sm font-semibold text-gray-700 mb-4">Status Perangkat &amp; Sensor</h2>
@@ -51,15 +54,17 @@ export function DeviceStatus({ latest }: DeviceStatusProps) {
       <div className="flex flex-col gap-1.5">
         {SENSORS.map(({ key, label, unit }) => {
           const val = latest?.[key];
-          const ok = val !== null && val !== undefined;
+          const hasValue = val !== null && val !== undefined;
+          // DS18B20 hijau hanya kalau benar ada nilai; sensor lain hijau kalau device aktif
+          const ok = key === 'temperature' ? hasValue : deviceActive;
           return (
             <div key={key} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-gray-50">
               <span className="text-sm text-gray-600">{label}</span>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-mono text-gray-800">
-                  {ok ? `${Number(val).toFixed(key === 'discharge_m3s' ? 4 : 2)} ${unit}` : '—'}
+                  {hasValue ? `${Number(val).toFixed(key === 'discharge_m3s' ? 4 : 2)} ${unit}` : '—'}
                 </span>
-                <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-red-400'}`} />
+                <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-gray-300'}`} />
               </div>
             </div>
           );
