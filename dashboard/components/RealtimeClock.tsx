@@ -8,12 +8,16 @@ interface RealtimeClockProps {
 }
 
 export function RealtimeClock({ lastUpdate, staleAfterSeconds = 60 }: RealtimeClockProps) {
-  const [now, setNow] = useState(new Date());
+  // null saat SSR — diset setelah mount agar SSR dan CSR render konten yang sama (cegah #418)
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  if (!now) return null;
 
   const secondsAgo = lastUpdate
     ? Math.floor((now.getTime() - new Date(lastUpdate).getTime()) / 1000)
