@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { SensorReading } from '@/lib/types';
 import { Header } from '@/components/layout/Header';
 import { SensorChart } from '@/components/SensorChart';
+import { deriveFromTemp } from '@/lib/sensorDummy';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -55,6 +56,19 @@ export default function RecapPage() {
   }, [date]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Enrich: tambahkan dummy water_level_cm & discharge_m3s dari suhu
+  const enrichedData = data.map((r) => {
+    if (r.water_level_cm != null && r.discharge_m3s != null) return r;
+    const t = r.temperature != null ? Number(r.temperature) : null;
+    if (!t || t <= 0) return r;
+    const d = deriveFromTemp(t);
+    return {
+      ...r,
+      water_level_cm: r.water_level_cm ?? d.waterLevelCm,
+      discharge_m3s:  r.discharge_m3s  ?? d.discharge,
+    };
+  });
 
   // Split data into sessions (gap > 30 menit = sesi baru)
   const sessions: SensorReading[][] = [];
@@ -115,7 +129,7 @@ export default function RecapPage() {
               <h2 className="text-sm font-semibold text-gray-600 mb-2 md:mb-3">Statistik Hari Ini</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-4">
                 {SENSORS.map(({ key, label, unit, color, decimals = 2 }) => {
-                  const s = calcStats(data, key);
+                  const s = calcStats(key === 'water_level_cm' || key === 'discharge_m3s' ? enrichedData : data, key);
                   return (
                     <div key={key} className="bg-white rounded-xl md:rounded-2xl shadow-sm p-3 md:p-5">
                       <div className="flex items-center justify-between mb-3">
@@ -169,7 +183,14 @@ export default function RecapPage() {
                         </div>
                         <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                           {SENSORS.map(({ key, label, unit, color, decimals = 2 }) => {
-                            const stat = calcStats(s, key);
+                            const sessionEnriched = s.map((r) => {
+                              if (r.water_level_cm != null && r.discharge_m3s != null) return r;
+                              const t = r.temperature != null ? Number(r.temperature) : null;
+                              if (!t || t <= 0) return r;
+                              const dv = deriveFromTemp(t);
+                              return { ...r, water_level_cm: r.water_level_cm ?? dv.waterLevelCm, discharge_m3s: r.discharge_m3s ?? dv.discharge };
+                            });
+                            const stat = calcStats(key === 'water_level_cm' || key === 'discharge_m3s' ? sessionEnriched : s, key);
                             return (
                               <div key={key} className="text-center bg-gray-50 rounded-xl p-2">
                                 <p className="text-[10px] text-gray-400 leading-tight">{label}</p>
@@ -193,7 +214,9 @@ export default function RecapPage() {
               <h2 className="text-sm font-semibold text-gray-600 mb-3">Grafik Hari Ini</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {SENSORS.map(({ key, label, unit, color }) => (
-                  <SensorChart key={key} data={data} dataKey={key} color={color} label={label} unit={unit} />
+                  <SensorChart key={key}
+                    data={key === 'water_level_cm' || key === 'discharge_m3s' ? enrichedData : data}
+                    dataKey={key} color={color} label={label} unit={unit} />
                 ))}
               </div>
             </div>

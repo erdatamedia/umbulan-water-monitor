@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { SensorReading } from '@/lib/types';
 import { Header } from '@/components/layout/Header';
 import { SensorChart } from '@/components/SensorChart';
+import { deriveFromTemp } from '@/lib/sensorDummy';
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -57,8 +58,21 @@ export default function HistoryPage() {
     URL.revokeObjectURL(url);
   }
 
+  // Enrich: tambahkan dummy water_level_cm & discharge_m3s dari suhu
+  const enrichedData = data.map((r) => {
+    if (r.water_level_cm != null && r.discharge_m3s != null) return r;
+    const t = r.temperature != null ? Number(r.temperature) : null;
+    if (!t || t <= 0) return r;
+    const d = deriveFromTemp(t);
+    return {
+      ...r,
+      water_level_cm: r.water_level_cm ?? d.waterLevelCm,
+      discharge_m3s:  r.discharge_m3s  ?? d.discharge,
+    };
+  });
+
   const totalPages = Math.ceil(data.length / PAGE_SIZE);
-  const pageData = data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageData = enrichedData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <>
@@ -146,8 +160,8 @@ export default function HistoryPage() {
             <SensorChart data={data} dataKey="temperature" color="#f59e0b" label="Suhu" unit="°C" />
             <SensorChart data={data} dataKey="ph" color="#8b5cf6" label="pH" unit="pH" />
             <SensorChart data={data} dataKey="turbidity" color="#06b6d4" label="Turbiditas" unit="NTU" />
-            <SensorChart data={data} dataKey="water_level_cm" color="#3b82f6" label="Muka Air" unit="cm" />
-            <SensorChart data={data} dataKey="discharge_m3s" color="#10b981" label="Debit" unit="m³/s" />
+            <SensorChart data={enrichedData} dataKey="water_level_cm" color="#3b82f6" label="Muka Air" unit="cm" />
+            <SensorChart data={enrichedData} dataKey="discharge_m3s" color="#10b981" label="Debit" unit="m³/s" />
             <SensorChart data={data} dataKey="do_estimated" color="#ef4444" label="DO Estimasi" unit="mg/L" />
           </div>
         )}
