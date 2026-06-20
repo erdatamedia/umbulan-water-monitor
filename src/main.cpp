@@ -19,9 +19,17 @@
 #define PUBLISH_INTERVAL_MS  10000
 
 // ─── Feature flags ─────────────────────────────────────────
-// Set true hanya kalau sensor sudah terpasang fisik dan siap dipakai
-#define PH_SENSOR_CONNECTED   false   // aktifkan setelah pH-4502C disolder & dipasang
+// Sensor real: set true hanya kalau sudah terpasang fisik dan dikalibrasi
 #define AJSR04M_ENABLED       false   // aktifkan setelah MT3608 diganti/solusi power selesai
+#define PH_SENSOR_CONNECTED   false   // aktifkan setelah pH-4502C dipasang & dikalibrasi buffer 4/7
+#define TURBIDITY_SENSOR_CONNECTED false // aktifkan setelah wiring MT3608 stabil & kalibrasi ulang
+
+// Dummy: HANYA untuk demo/testing dashboard sementara.
+// Nilai berdasarkan karakteristik umum mata air pegunungan/kapur (referensi: SPAM Umbulan
+// sebagai sumber air baku PDAM Jatim) — BUKAN hasil pengukuran langsung.
+// Set false dan kalibrasi sensor real setelah hardware selesai diperbaiki di base.
+#define PH_USE_DUMMY        true
+#define TURBIDITY_USE_DUMMY true
 
 // ─── Pin ───────────────────────────────────────────────────
 // GPIO 17/18 aman — Octal PSRAM N16R8 pakai GPIO 33-37, bukan 17/18
@@ -40,9 +48,8 @@
 #define PH_NEUTRAL_V    1.65f
 #define PH_SLOPE        0.18f
 
-// Turbidity: VCC sementara dari pin 5V ESP32 (~3.5V terukur) bukan MT3608
-// Nilai kalibrasi ini BELUM FINAL — akan dikalibrasi ulang setelah kembali ke base
-// dengan VCC dari MT3608 (4.8V) sebagai power source final
+// Turbidity: kalibrasi BELUM FINAL — akan dikalibrasi ulang di base
+// dengan VCC dari MT3608 (target 4.8V) sebagai power source final
 #define TURB_V_CLEAR    4.2f
 #define TURB_V_DIRTY    1.0f
 #define TURB_NTU_MAX    3000.0f
@@ -61,7 +68,7 @@ PubSubClient mqtt(wifiClient);
 unsigned long lastPublish = 0;
 bool ledStatusState = false;
 
-// ─── Fungsi sensor ─────────────────────────────────────────
+// ─── Fungsi sensor real ────────────────────────────────────
 
 float readTemperature() {
     ds18b20.requestTemperatures();
@@ -86,6 +93,7 @@ float readPH() {
 }
 #endif
 
+#if TURBIDITY_SENSOR_CONNECTED
 float readTurbidityNTU() {
     int samples[10];
     for (int i = 0; i < 10; i++) {
@@ -101,9 +109,13 @@ float readTurbidityNTU() {
     long sum = 0;
     for (int i = 2; i < 8; i++) sum += samples[i];
     float voltage = (sum / 6.0f) * (ADC_VREF / ADC_MAX);
+    Serial.print("[TURB] Voltage: ");
+    Serial.print(voltage, 3);
+    Serial.println(" V");
     float ntu = TURB_NTU_MAX * (1.0f - ((voltage - TURB_V_DIRTY) / (TURB_V_CLEAR - TURB_V_DIRTY)));
     return constrain(ntu, 0.0f, TURB_NTU_MAX);
 }
+#endif
 
 #if AJSR04M_ENABLED
 float readWaterLevelCm() {
@@ -127,20 +139,41 @@ float readWaterLevelCm() {
     float level = SENSOR_HEIGHT_CM - distanceCm;
     return max(0.0f, level);
 }
-#endif
 
-float estimateDO(float tempC) {
-    if (tempC < 0) return -999.0f;
-    return 14.62f - (0.3898f * tempC) + (0.006969f * tempC * tempC) - (0.00005896f * tempC * tempC * tempC);
-}
-
-#if AJSR04M_ENABLED
 float calcDischarge(float levelCm) {
     if (levelCm <= 0) return 0.0f;
     float levelM = levelCm / 100.0f;
     return RATING_A * powf(levelM, RATING_B);
 }
 #endif
+
+// ─── Fungsi dummy (sementara, untuk demo dashboard) ────────
+// Nilai berdasarkan karakteristik umum mata air pegunungan/kapur.
+// HARUS diganti dengan pembacaan sensor real setelah hardware selesai.
+
+float readPHDummy(float tempC) {
+    // pH mata air pegunungan/kapur: netral-sedikit basa, 7.2-7.6
+    // Variasi halus mengikuti suhu (semakin hangat, pH sedikit naik
+    // karena pergeseran kesetimbangan karbonat)
+    float base = 7.35f;
+    float tempInfluence = (tempC - 26.0f) * 0.02f;
+    float noise = (random(-10, 10) / 100.0f); // variasi ±0.1
+    return constrain(base + tempInfluence + noise, 7.0f, 7.8f);
+}
+
+float readTurbidityDummy() {
+    // Turbidity air mata air alami yang jernih: 1.5-4.0 NTU
+    // (jauh di bawah ambang keruh, sesuai karakter mata air
+    // pegunungan/kapur yang dipakai sumber air baku PDAM)
+    float base = 2.2f;
+    float noise = (random(-80, 80) / 100.0f); // variasi ±0.8 NTU
+    return constrain(base + noise, 1.0f, 4.5f);
+}
+
+float estimateDO(float tempC) {
+    if (tempC < 0) return -999.0f;
+    return 14.62f - (0.3898f * tempC) + (0.006969f * tempC * tempC) - (0.00005896f * tempC * tempC * tempC);
+}
 
 // ─── WiFi ──────────────────────────────────────────────────
 
@@ -227,11 +260,20 @@ void loop() {
         lastPublish = now;
 
         float temp = readTemperature();
-        float turb = readTurbidityNTU();
         float doEst = (temp > 0) ? estimateDO(temp) : -999.0f;
+
 #if PH_SENSOR_CONNECTED
         float ph = readPH();
+#elif PH_USE_DUMMY
+        float ph = readPHDummy(temp);
 #endif
+
+#if TURBIDITY_SENSOR_CONNECTED
+        float turb = readTurbidityNTU();
+#elif TURBIDITY_USE_DUMMY
+        float turb = readTurbidityDummy();
+#endif
+
 #if AJSR04M_ENABLED
         float level = readWaterLevelCm();
         float discharge = (level > 0) ? calcDischarge(level) : 0.0f;
@@ -243,10 +285,12 @@ void loop() {
         JsonDocument doc;
         doc["device_id"] = DEVICE_ID;
         if (temp > -100) doc["temperature"]  = serialized(String(temp, 2));
-#if PH_SENSOR_CONNECTED
+#if PH_SENSOR_CONNECTED || PH_USE_DUMMY
         if (ph > 0 && ph < 14) doc["ph"]     = serialized(String(ph, 2));
 #endif
+#if TURBIDITY_SENSOR_CONNECTED || TURBIDITY_USE_DUMMY
         if (turb >= 0)   doc["turbidity"]    = serialized(String(turb, 1));
+#endif
         if (doEst > 0)   doc["do_estimated"] = serialized(String(doEst, 2));
 #if AJSR04M_ENABLED
         if (level >= 0)  doc["water_level_cm"] = serialized(String(level, 1));
