@@ -16,9 +16,14 @@
 #define MQTT_TOPIC      "umbulan/sensors/esp32s3"
 #define DEVICE_ID       "esp32s3-umbulan-01"
 
-#define PUBLISH_INTERVAL_MS  10000   // kirim data setiap 10 detik
+#define PUBLISH_INTERVAL_MS  10000
+
+// ─── Feature flags — set true hanya kalau sensor sudah terpasang fisik ──────
+#define PH_SENSOR_CONNECTED       false
+#define ULTRASONIC_SENSOR_CONNECTED true
 
 // ─── Pin ───────────────────────────────────────────────────
+// GPIO 17/18 aman dipakai — Octal PSRAM N16R8 pakai GPIO 33-37, bukan 17/18
 #define PIN_DS18B20     16
 #define PIN_PH          4
 #define PIN_TURBIDITY   5
@@ -31,20 +36,17 @@
 #define ADC_VREF        3.3f
 #define ADC_MAX         4095.0f
 
-// pH-4502C: update nilai ini setelah kalibrasi dengan buffer pH 4 & 7
 #define PH_NEUTRAL_V    1.65f
 #define PH_SLOPE        0.18f
 
-// Turbiditas: tegangan saat jernih dan keruh (update setelah kalibrasi)
 #define TURB_V_CLEAR    4.2f
 #define TURB_V_DIRTY    1.0f
 #define TURB_NTU_MAX    3000.0f
 
-// AJ-SR04M: tinggi sensor dari dasar saluran (cm) — ukur saat setup lapangan
+// Tinggi sensor dari dasar saluran (cm) — ukur saat setup lapangan
 #define SENSOR_HEIGHT_CM  100.0f
 
 // Stage-discharge rating curve: Q = a * H^b
-// Update koefisien ini setelah pengukuran dengan current meter
 #define RATING_A        0.5f
 #define RATING_B        1.5f
 
@@ -62,16 +64,12 @@ bool ledStatusState = false;
 float readTemperature() {
     ds18b20.requestTemperatures();
     float t = ds18b20.getTempCByIndex(0);
-    Serial.print("[DS18B20] Device count: ");
-    Serial.println(ds18b20.getDeviceCount());
-    Serial.print("[DS18B20] Raw temp: ");
-    Serial.println(t);
     if (t == DEVICE_DISCONNECTED_C) return -999.0f;
     return t;
 }
 
+#if PH_SENSOR_CONNECTED
 float readPH() {
-    // Rata-rata 10 sampel untuk stabilisasi
     long sum = 0;
     for (int i = 0; i < 10; i++) {
         sum += analogRead(PIN_PH);
@@ -80,37 +78,51 @@ float readPH() {
     float voltage = (sum / 10.0f) * (ADC_VREF / ADC_MAX);
     return 7.0f + ((PH_NEUTRAL_V - voltage) / PH_SLOPE);
 }
+#endif
 
 float readTurbidityNTU() {
-    long sum = 0;
+    int samples[10];
     for (int i = 0; i < 10; i++) {
-        sum += analogRead(PIN_TURBIDITY);
+        samples[i] = analogRead(PIN_TURBIDITY);
         delay(10);
     }
-    float voltage = (sum / 10.0f) * (ADC_VREF / ADC_MAX);
-    // Interpolasi linear: tegangan tinggi = jernih, tegangan rendah = keruh
+    // Insertion sort, buang 2 terendah + 2 tertinggi, rata-rata 6 sisanya
+    for (int i = 1; i < 10; i++) {
+        int key = samples[i], j = i - 1;
+        while (j >= 0 && samples[j] > key) { samples[j + 1] = samples[j]; j--; }
+        samples[j + 1] = key;
+    }
+    long sum = 0;
+    for (int i = 2; i < 8; i++) sum += samples[i];
+    float voltage = (sum / 6.0f) * (ADC_VREF / ADC_MAX);
     float ntu = TURB_NTU_MAX * (1.0f - ((voltage - TURB_V_DIRTY) / (TURB_V_CLEAR - TURB_V_DIRTY)));
     return constrain(ntu, 0.0f, TURB_NTU_MAX);
 }
 
 float readWaterLevelCm() {
-    // Trigger pulse
     digitalWrite(PIN_TRIG, LOW);
     delayMicroseconds(2);
     digitalWrite(PIN_TRIG, HIGH);
     delayMicroseconds(10);
     digitalWrite(PIN_TRIG, LOW);
 
-    long duration = pulseIn(PIN_ECHO, HIGH, 30000); // timeout 30ms
+    // Timeout 50ms: cukup untuk jarak maksimal AJ-SR04M 8m (round-trip ~46ms)
+    long duration = pulseIn(PIN_ECHO, HIGH, 50000);
+
+    Serial.print("[AJ-SR04M] Duration us: ");
+    Serial.println(duration);
+
     if (duration == 0) return -999.0f;
 
     float distanceCm = duration * 0.0343f / 2.0f;
+    Serial.print("[AJ-SR04M] Distance cm: ");
+    Serial.println(distanceCm);
+
     float level = SENSOR_HEIGHT_CM - distanceCm;
     return max(0.0f, level);
 }
 
 float estimateDO(float tempC) {
-    // Estimasi DO saturasi dari suhu (Benson & Krause, 1980)
     if (tempC < 0) return -999.0f;
     return 14.62f - (0.3898f * tempC) + (0.006969f * tempC * tempC) - (0.00005896f * tempC * tempC * tempC);
 }
@@ -165,15 +177,18 @@ void setup() {
     pinMode(PIN_ECHO, INPUT);
     analogReadResolution(12);
 
-    // Test LED
     digitalWrite(PIN_LED_POWER, HIGH);
     digitalWrite(PIN_LED_STATUS, HIGH);
     delay(500);
     digitalWrite(PIN_LED_STATUS, LOW);
 
     ds18b20.begin();
-    Serial.print("[DS18B20] Initialized, device count: ");
+    Serial.print("[DS18B20] Device count: ");
     Serial.println(ds18b20.getDeviceCount());
+
+    // Beri waktu MT3608 dan semua regulator sensor settle sebelum baca ADC
+    Serial.println("[INIT] Waiting for power rails to stabilize...");
+    delay(2000);
 
     connectWiFi();
     mqtt.setServer(MQTT_HOST, MQTT_PORT);
@@ -186,13 +201,12 @@ void setup() {
 // ─── Loop ──────────────────────────────────────────────────
 
 void loop() {
-    // Jaga koneksi WiFi
     if (WiFi.status() != WL_CONNECTED) {
         digitalWrite(PIN_LED_POWER, LOW);
+        delay(3000); // backoff sebelum retry, beri waktu rail stabil
         connectWiFi();
     }
 
-    // Jaga koneksi MQTT
     if (!mqtt.connected()) {
         connectMQTT();
     }
@@ -202,27 +216,28 @@ void loop() {
     if (now - lastPublish >= PUBLISH_INTERVAL_MS) {
         lastPublish = now;
 
-        // Baca semua sensor
         float temp     = readTemperature();
-        float ph       = readPH();
         float turb     = readTurbidityNTU();
-        float level    = readWaterLevelCm();
+        float level    = ULTRASONIC_SENSOR_CONNECTED ? readWaterLevelCm() : -999.0f;
         float doEst    = (temp > 0) ? estimateDO(temp) : -999.0f;
         float discharge = (level > 0) ? calcDischarge(level) : 0.0f;
+#if PH_SENSOR_CONNECTED
+        float ph = readPH();
+#endif
 
-        // Blink LED status saat publish
         ledStatusState = !ledStatusState;
         digitalWrite(PIN_LED_STATUS, ledStatusState);
 
-        // Bangun JSON payload
         JsonDocument doc;
-        doc["device_id"]      = DEVICE_ID;
-        if (temp > -100)      doc["temperature"]    = serialized(String(temp, 2));
-        if (ph > 0 && ph < 14) doc["ph"]            = serialized(String(ph, 2));
-        if (turb >= 0)        doc["turbidity"]      = serialized(String(turb, 1));
-        if (level >= 0)       doc["water_level_cm"] = serialized(String(level, 1));
-        doc["discharge_m3s"]  = serialized(String(discharge, 4));
-        if (doEst > 0)        doc["do_estimated"]   = serialized(String(doEst, 2));
+        doc["device_id"] = DEVICE_ID;
+        if (temp > -100)  doc["temperature"]    = serialized(String(temp, 2));
+#if PH_SENSOR_CONNECTED
+        if (ph > 0 && ph < 14) doc["ph"]        = serialized(String(ph, 2));
+#endif
+        if (turb >= 0)    doc["turbidity"]       = serialized(String(turb, 1));
+        if (level >= 0)   doc["water_level_cm"]  = serialized(String(level, 1));
+        doc["discharge_m3s"] = serialized(String(discharge, 4));
+        if (doEst > 0)    doc["do_estimated"]    = serialized(String(doEst, 2));
 
         char payload[512];
         serializeJson(doc, payload);
