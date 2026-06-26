@@ -5,6 +5,8 @@ import { useSensorData } from '@/hooks/useSensorData';
 import { Header } from '@/components/layout/Header';
 import { deriveFromTemp } from '@/lib/sensorDummy';
 
+type JenisData = 'kualitas' | 'kualitas_debit';
+
 interface TitikForm {
   namaTitik: string;
   kodeTitik: string;
@@ -12,6 +14,9 @@ interface TitikForm {
   lng: string;
   petugas: string;
   catatan: string;
+  jenisData: JenisData;
+  mukaAirAwal: string;
+  mukaAirAkhir: string;
 }
 
 const FORM_INIT: TitikForm = {
@@ -21,6 +26,9 @@ const FORM_INIT: TitikForm = {
   lng: '',
   petugas: '',
   catatan: '',
+  jenisData: 'kualitas',
+  mukaAirAwal: '',
+  mukaAirAkhir: '',
 };
 
 const SENSOR_ROWS = [
@@ -38,6 +46,15 @@ function toNum(v: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
+function loadPoints(): any[] {
+  try {
+    const raw = localStorage.getItem('umbulan_titik');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function SistemPage() {
   const { latest, connected } = useSensorData();
   const [form, setForm] = useState<TitikForm>(FORM_INIT);
@@ -45,9 +62,14 @@ export default function SistemPage() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const [refreshList, setRefreshList] = useState(0);
 
-  // now hanya di client — hindari hydration mismatch dengan Date.now()
+  // Lifted state — tidak perlu remount SavedPointsList
+  const [points, setPoints] = useState<any[]>([]);
+
+  useEffect(() => {
+    setPoints(loadPoints().reverse());
+  }, []);
+
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); }, [latest]);
 
@@ -72,6 +94,11 @@ export default function SistemPage() {
   function handleChange(field: keyof TitikForm, value: string) {
     setSaved(false);
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function handleJenisData(jenis: JenisData) {
+    setSaved(false);
+    setForm((f) => ({ ...f, jenisData: jenis }));
   }
 
   function handleGunakanlokasi() {
@@ -104,23 +131,29 @@ export default function SistemPage() {
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    const snapshot = {
+    const snapshot: any = {
       ...form,
       suhu: sensorValues.temperature,
       ph: sensorValues.ph,
       turbidity: sensorValues.turbidity,
-      water_level_cm: sensorValues.water_level_cm,
-      discharge_m3s: sensorValues.discharge_m3s,
       do_estimated: sensorValues.do_estimated,
       waktu: latest?.recorded_at ?? new Date().toISOString(),
       savedAt: new Date().toISOString(),
     };
-    const existing = JSON.parse(localStorage.getItem('umbulan_titik') ?? '[]');
+
+    if (form.jenisData === 'kualitas_debit') {
+      snapshot.mukaAirAwal_cm  = toNum(form.mukaAirAwal);
+      snapshot.mukaAirAkhir_cm = toNum(form.mukaAirAkhir);
+    }
+
+    const existing = loadPoints();
     existing.push(snapshot);
     localStorage.setItem('umbulan_titik', JSON.stringify(existing));
     setSaved(true);
-    setRefreshList((n) => n + 1);
-    // Scroll ke daftar titik tersimpan
+
+    // Perbarui list langsung tanpa remount
+    setPoints([snapshot, ...existing.slice(0, -1).reverse()]);
+
     setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   }
 
@@ -129,6 +162,15 @@ export default function SistemPage() {
     setSaved(false);
     setGeoError(null);
   }
+
+  function handleDelete(indexInReversed: number) {
+    const raw = loadPoints();
+    raw.splice(raw.length - 1 - indexInReversed, 1);
+    localStorage.setItem('umbulan_titik', JSON.stringify(raw));
+    setPoints(raw.slice().reverse());
+  }
+
+  const withDebit = form.jenisData === 'kualitas_debit';
 
   return (
     <>
@@ -188,6 +230,42 @@ export default function SistemPage() {
           </p>
 
           <form onSubmit={handleSave} className="flex flex-col gap-3">
+
+            {/* ── Jenis Pengumpulan Data ── */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-gray-600">Jenis Pengumpulan Data</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleJenisData('kualitas')}
+                  className={`rounded-xl border-2 py-3 px-3 text-left transition-colors ${
+                    !withDebit
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${!withDebit ? 'text-blue-700' : 'text-gray-700'}`}>
+                    Kualitas Air
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">Suhu, pH, Turbiditas, DO</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleJenisData('kualitas_debit')}
+                  className={`rounded-xl border-2 py-3 px-3 text-left transition-colors ${
+                    withDebit
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${withDebit ? 'text-blue-700' : 'text-gray-700'}`}>
+                    Kualitas + Debit
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">Termasuk ukur muka air</p>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-gray-600">Nama Titik</label>
@@ -289,17 +367,67 @@ export default function SistemPage() {
               />
             </div>
 
+            {/* ── Input Muka Air (hanya jika debit) ── */}
+            {withDebit && (
+              <div className="border-2 border-blue-100 bg-blue-50 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <p className="text-xs font-semibold text-blue-700">Pengukuran Debit — Input Manual</p>
+                </div>
+                <p className="text-[11px] text-blue-600 -mt-1">
+                  Catat tinggi muka air di awal dan akhir pengambilan data menggunakan alat ukur.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-blue-700">Muka Air Awal</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="0.0"
+                        value={form.mukaAirAwal}
+                        onChange={(e) => handleChange('mukaAirAwal', e.target.value)}
+                        className="flex-1 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <span className="text-xs text-blue-600 font-medium shrink-0">cm</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-blue-700">Muka Air Akhir</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="0.0"
+                        value={form.mukaAirAkhir}
+                        onChange={(e) => handleChange('mukaAirAkhir', e.target.value)}
+                        className="flex-1 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <span className="text-xs text-blue-600 font-medium shrink-0">cm</span>
+                    </div>
+                  </div>
+                </div>
+                {form.mukaAirAwal && form.mukaAirAkhir && (
+                  <p className="text-[11px] text-blue-600 font-mono">
+                    Selisih: {Math.abs(Number(form.mukaAirAkhir) - Number(form.mukaAirAwal)).toFixed(1)} cm
+                    {' '}({Number(form.mukaAirAkhir) >= Number(form.mukaAirAwal) ? '↑ naik' : '↓ turun'})
+                  </p>
+                )}
+              </div>
+            )}
+
             {deviceActive && (
-              <div className="bg-blue-50 rounded-xl px-4 py-3 text-xs text-blue-700">
-                <p className="font-semibold mb-1">Data sensor yang akan disimpan bersama titik ini:</p>
+              <div className="bg-gray-50 rounded-xl px-4 py-3 text-xs text-gray-600">
+                <p className="font-semibold mb-1 text-gray-700">Data sensor yang akan disimpan:</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
                   {([
-                    ['Suhu',      'temperature',    2, '°C'],
-                    ['pH',        'ph',             2, ''],
-                    ['Turbiditas','turbidity',       1, 'NTU'],
-                    ['Muka Air',  'water_level_cm', 1, 'cm'],
-                    ['Debit',     'discharge_m3s',  4, 'm³/s'],
-                    ['DO',        'do_estimated',   2, 'mg/L'],
+                    ['Suhu',       'temperature',  2, '°C'],
+                    ['pH',         'ph',           2, ''],
+                    ['Turbiditas', 'turbidity',    1, 'NTU'],
+                    ['DO',         'do_estimated', 2, 'mg/L'],
                   ] as [string, string, number, string][]).map(([lbl, key, dec, unit]) => (
                     <span key={key}>
                       {lbl}: {sensorValues[key] !== null
@@ -337,33 +465,24 @@ export default function SistemPage() {
         </div>
 
         {/* ── Riwayat Titik Tersimpan ── */}
-        <div ref={listRef}>
-          <SavedPointsList key={refreshList} />
-        </div>
+        {points.length > 0 && (
+          <div ref={listRef}>
+            <SavedPointsList points={points} onDelete={handleDelete} />
+          </div>
+        )}
       </div>
     </>
   );
 }
 
-function SavedPointsList() {
-  const [points, setPoints] = useState<any[]>([]);
+function SavedPointsList({
+  points,
+  onDelete,
+}: {
+  points: any[];
+  onDelete: (indexInReversed: number) => void;
+}) {
   const [expanded, setExpanded] = useState<number | null>(null);
-
-  useEffect(() => {
-    const raw = localStorage.getItem('umbulan_titik');
-    if (raw) setPoints(JSON.parse(raw).reverse());
-  }, []);
-
-  function handleDelete(indexInReversed: number) {
-    const raw = JSON.parse(localStorage.getItem('umbulan_titik') ?? '[]') as any[];
-    // reversed index → original index
-    raw.splice(raw.length - 1 - indexInReversed, 1);
-    localStorage.setItem('umbulan_titik', JSON.stringify(raw));
-    setPoints(raw.slice().reverse());
-    setExpanded(null);
-  }
-
-  if (points.length === 0) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow p-5">
@@ -376,9 +495,9 @@ function SavedPointsList() {
       <div className="flex flex-col gap-2">
         {points.map((p, i) => {
           const isOpen = expanded === i;
+          const withDebit = p.jenisData === 'kualitas_debit';
           return (
             <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
-              {/* Header baris — selalu tampil */}
               <button
                 type="button"
                 onClick={() => setExpanded(isOpen ? null : i)}
@@ -389,7 +508,14 @@ function SavedPointsList() {
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{p.namaTitik || '(tanpa nama)'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{p.namaTitik || '(tanpa nama)'}</p>
+                      <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        withDebit ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {withDebit ? 'Kualitas+Debit' : 'Kualitas'}
+                      </span>
+                    </div>
                     <p className="text-[10px] text-gray-400 font-mono">
                       {p.kodeTitik && <span className="mr-2">{p.kodeTitik}</span>}
                       {new Date(p.savedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
@@ -402,18 +528,36 @@ function SavedPointsList() {
                 </svg>
               </button>
 
-              {/* Detail — hanya tampil kalau expanded */}
               {isOpen && (
                 <div className="border-t border-gray-100 px-3 pb-3 pt-2 text-xs text-gray-600 flex flex-col gap-2">
-                  {/* Data sensor */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono bg-gray-50 rounded-lg p-2.5">
-                    <span>Suhu: {p.suhu != null ? Number(p.suhu).toFixed(2) : '—'} °C</span>
-                    <span>pH: {p.ph != null ? Number(p.ph).toFixed(2) : '—'}</span>
-                    <span>Turbiditas: {p.turbidity != null ? Number(p.turbidity).toFixed(1) : '—'} NTU</span>
-                    <span>Muka Air: {p.water_level_cm != null ? Number(p.water_level_cm).toFixed(1) : '—'} cm</span>
-                    <span>Debit: {p.discharge_m3s != null ? Number(p.discharge_m3s).toFixed(4) : '—'} m³/s</span>
-                    <span>DO: {p.do_estimated != null ? Number(p.do_estimated).toFixed(2) : '—'} mg/L</span>
+
+                  {/* Kualitas Air */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Kualitas Air</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono bg-gray-50 rounded-lg p-2.5">
+                      <span>Suhu: {p.suhu != null ? Number(p.suhu).toFixed(2) : '—'} °C</span>
+                      <span>pH: {p.ph != null ? Number(p.ph).toFixed(2) : '—'}</span>
+                      <span>Turbiditas: {p.turbidity != null ? Number(p.turbidity).toFixed(1) : '—'} NTU</span>
+                      <span>DO: {p.do_estimated != null ? Number(p.do_estimated).toFixed(2) : '—'} mg/L</span>
+                    </div>
                   </div>
+
+                  {/* Debit Air (jika ada) */}
+                  {withDebit && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Debit Air</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono bg-blue-50 rounded-lg p-2.5 text-blue-800">
+                        <span>Muka Air Awal: {p.mukaAirAwal_cm != null ? `${Number(p.mukaAirAwal_cm).toFixed(1)} cm` : '—'}</span>
+                        <span>Muka Air Akhir: {p.mukaAirAkhir_cm != null ? `${Number(p.mukaAirAkhir_cm).toFixed(1)} cm` : '—'}</span>
+                        {p.mukaAirAwal_cm != null && p.mukaAirAkhir_cm != null && (
+                          <span className="col-span-2">
+                            Selisih: {Math.abs(Number(p.mukaAirAkhir_cm) - Number(p.mukaAirAwal_cm)).toFixed(1)} cm
+                            {' '}({Number(p.mukaAirAkhir_cm) >= Number(p.mukaAirAwal_cm) ? '↑ naik' : '↓ turun'})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Koordinat */}
                   {p.lat && (
@@ -435,27 +579,23 @@ function SavedPointsList() {
                     </div>
                   )}
 
-                  {/* Petugas */}
                   {p.petugas && (
                     <p className="text-gray-500">Petugas: <span className="font-medium text-gray-700">{p.petugas}</span></p>
                   )}
 
-                  {/* Catatan */}
                   {p.catatan && (
                     <p className="text-gray-500 italic bg-yellow-50 rounded-lg px-2.5 py-1.5">{p.catatan}</p>
                   )}
 
-                  {/* Waktu sensor */}
                   <p className="text-gray-400 text-[10px]">
                     Data sensor: {new Date(p.waktu).toLocaleString('id-ID')}
                     {' · '}
                     Disimpan: {new Date(p.savedAt).toLocaleString('id-ID')}
                   </p>
 
-                  {/* Hapus */}
                   <button
                     type="button"
-                    onClick={() => handleDelete(i)}
+                    onClick={() => onDelete(i)}
                     className="self-start text-xs text-red-500 hover:text-red-600 flex items-center gap-1 mt-0.5"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
