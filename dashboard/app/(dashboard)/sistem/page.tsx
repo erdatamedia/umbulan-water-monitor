@@ -255,13 +255,13 @@ function MulaiSesiPanel({ sensorValues, deviceActive, onMulai }: {
             <label className="text-xs font-medium text-gray-600">Nama Titik <span className="text-red-400">*</span></label>
             <input type="text" placeholder="cth. Sumber Umbulan Utara"
               value={form.titik} onChange={e => setForm(f => ({ ...f, titik: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600">Kode Titik</label>
             <input type="text" placeholder="cth. UMB-01"
               value={form.kodeTitik} onChange={e => setForm(f => ({ ...f, kodeTitik: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
         </div>
 
@@ -288,9 +288,9 @@ function MulaiSesiPanel({ sensorValues, deviceActive, onMulai }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input type="text" placeholder="-7.8xxxx" value={lat} onChange={e => setLat(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200" />
             <input type="text" placeholder="112.9xxxx" value={lng} onChange={e => setLng(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
           {geoError && <p className="text-xs text-red-500">{geoError}</p>}
           {lat && lng && !geoError && <p className="text-xs text-green-600 font-mono">📍 {lat}, {lng}</p>}
@@ -301,7 +301,7 @@ function MulaiSesiPanel({ sensorValues, deviceActive, onMulai }: {
           <label className="text-xs font-medium text-gray-600">Petugas</label>
           <input type="text" placeholder="Nama petugas"
             value={form.petugas} onChange={e => setForm(f => ({ ...f, petugas: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
 
         {/* Muka air awal (jika debit) */}
@@ -311,7 +311,7 @@ function MulaiSesiPanel({ sensorValues, deviceActive, onMulai }: {
             <div className="flex items-center gap-2">
               <input type="number" step="0.1" placeholder="0.0"
                 value={mukaAirAwal} onChange={e => setMukaAirAwal(e.target.value)}
-                className="w-32 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                className="w-32 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <span className="text-sm text-blue-600 font-medium">cm</span>
             </div>
           </div>
@@ -322,7 +322,7 @@ function MulaiSesiPanel({ sensorValues, deviceActive, onMulai }: {
           <label className="text-xs font-medium text-gray-600">Catatan awal</label>
           <textarea rows={2} placeholder="Kondisi lapangan, cuaca, dll."
             value={form.catatan} onChange={e => setForm(f => ({ ...f, catatan: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none" />
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none" />
         </div>
 
         {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -515,7 +515,7 @@ function SesiAktifPanel({ sesi, sensorValues, deviceActive, now, onSelesai }: {
                 <div className="flex items-center gap-2">
                   <input type="number" step="0.1" placeholder="0.0"
                     value={mukaAirAkhir} onChange={e => setMukaAirAkhir(e.target.value)}
-                    className="w-32 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    className="w-32 border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300" />
                   <span className="text-sm text-blue-600 font-medium">cm</span>
                 </div>
                 {sesi.muka_air_awal_cm != null && mukaAirAkhir && (
@@ -531,7 +531,7 @@ function SesiAktifPanel({ sesi, sensorValues, deviceActive, now, onSelesai }: {
               <label className="text-xs font-medium text-gray-600">Catatan penutup (opsional)</label>
               <textarea rows={2} placeholder="Observasi akhir, kondisi lapangan, dll."
                 value={catatanAkhir} onChange={e => setCatatanAkhir(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none" />
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none" />
             </div>
 
             {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
